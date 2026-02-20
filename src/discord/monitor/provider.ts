@@ -1,6 +1,8 @@
 import { inspect } from "node:util";
 import {
+  type BaseCommand,
   Client,
+  type Plugin,
   ReadyListener,
   type BaseCommand,
   type BaseMessageInteractiveComponent,
