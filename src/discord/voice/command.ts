@@ -195,10 +195,11 @@ export function createDiscordVoiceCommand(params: VoiceCommandContext): CommandW
     defer = true;
     ephemeral = params.ephemeralDefault;
     options: CommandOptions = [
+    options: CommandOptions = [
       {
         name: "channel",
         description: "Voice channel to join",
-        type: ApplicationCommandOptionType.Channel,
+        type: ApplicationCommandOptionType.Channel as const,
         required: true,
         channel_types: VOICE_CHANNEL_TYPES,
       },
