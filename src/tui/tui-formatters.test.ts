@@ -133,6 +133,18 @@ Assistant body`,
     expect(text).toContain("Conversation info (untrusted metadata):");
     expect(text).toContain("Assistant body");
   });
+
+  it("does not strip metadata-like blocks that are not a leading prefix", () => {
+    const text = extractTextFromMessage({
+      role: "user",
+      content:
+        "Hello world\nConversation info (untrusted metadata):\n```json\n{\"message_id\":\"123\"}\n```\n\nFollow-up",
+    });
+
+    expect(text).toBe(
+      "Hello world\nConversation info (untrusted metadata):\n```json\n{\"message_id\":\"123\"}\n```\n\nFollow-up",
+    );
+  });
 });
 
 describe("extractThinkingFromMessage", () => {

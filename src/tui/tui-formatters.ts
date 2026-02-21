@@ -1,4 +1,5 @@
 import { formatRawAssistantErrorForUi } from "../agents/pi-embedded-helpers.js";
+import { stripInboundMetadataBlocks } from "../shared/chat-envelope.js";
 import { stripAnsi } from "../terminal/ansi.js";
 import { formatTokenCount } from "../utils/usage-format.js";
 
@@ -10,17 +11,6 @@ const BINARY_LINE_REPLACEMENT_THRESHOLD = 12;
 const URL_PREFIX_RE = /^(https?:\/\/|file:\/\/)/i;
 const WINDOWS_DRIVE_RE = /^[a-zA-Z]:[\\/]/;
 const FILE_LIKE_RE = /^[a-zA-Z0-9._-]+$/;
-const INBOUND_METADATA_HEADERS = [
-  "Conversation info (untrusted metadata):",
-  "Sender (untrusted metadata):",
-  "Thread starter (untrusted, for context):",
-  "Replied message (untrusted, for context):",
-  "Forwarded message context (untrusted metadata):",
-  "Chat history since last reply (untrusted, for context):",
-];
-const INBOUND_METADATA_BLOCK_RE = new RegExp(
-  `^(?:${INBOUND_METADATA_HEADERS.map((header) => header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\r?\\n\`\`\`json\\r?\\n[\\s\\S]*?\\r?\\n\`\`\`(?:\\r?\\n)*`,
-);
 
 function hasControlChars(text: string): boolean {
   for (const char of text) {
@@ -274,18 +264,6 @@ function extractTextBlocks(content: unknown, opts?: { includeThinking?: boolean 
   });
 }
 
-function stripLeadingInboundMetadataBlocks(text: string): string {
-  let remaining = text;
-  for (;;) {
-    const match = INBOUND_METADATA_BLOCK_RE.exec(remaining);
-    if (!match) {
-      break;
-    }
-    remaining = remaining.slice(match[0].length).replace(/^\s*\r?\n/, "");
-  }
-  return remaining.trim();
-}
-
 export function extractTextFromMessage(
   message: unknown,
   opts?: { includeThinking?: boolean },
@@ -297,7 +275,7 @@ export function extractTextFromMessage(
   const text = extractTextBlocks(record.content, opts);
   if (text) {
     if (record.role === "user") {
-      return stripLeadingInboundMetadataBlocks(text);
+      return stripInboundMetadataBlocks(text);
     }
     return text;
   }
