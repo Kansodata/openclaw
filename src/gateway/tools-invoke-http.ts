@@ -307,7 +307,7 @@ export async function handleToolsInvokeHttpRequest(
 
   const metricChannel = resolveGatewayMetricChannel({
     messageChannel,
-    sessionKey: rawSessionKey,
+    sessionKey,
   });
 
   const startedAt = Date.now();
