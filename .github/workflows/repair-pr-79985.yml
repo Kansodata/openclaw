@@ -1,0 +1,85 @@
+name: Repair PR 79985
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Refresh PR branch from upstream main
+        run: |
+          git remote add upstream https://github.com/openclaw/openclaw.git || true
+          git fetch upstream main
+          git fetch origin fix/chat-agent-visibility
+          git checkout -B fix/chat-agent-visibility origin/fix/chat-agent-visibility
+          git rebase upstream/main
+
+      - name: Align Gateway agents.list contract wording
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          protocol = Path("docs/gateway/protocol.md")
+          schema = Path("packages/gateway-protocol/src/schema/agents-models-skills.ts")
+
+          protocol_old = "- `agents.list` returns configured agent entries, including effective model and runtime metadata."
+          protocol_new = "- `agents.list` returns the runtime-visible agent set, including effective model and runtime metadata. When `agents.list` is explicitly configured, that configuration defines the visible scope; otherwise, the result may also include disk-discovered agent state directories."
+
+          schema_old = "/** Empty request payload for listing configured agents. */"
+          schema_new = "/** Empty request payload for listing runtime-visible agents. Explicit configuration scopes the result; otherwise disk-discovered agent state may also be included. */"
+
+          protocol_text = protocol.read_text(encoding="utf-8")
+          schema_text = schema.read_text(encoding="utf-8")
+
+          if protocol_old not in protocol_text:
+              raise SystemExit(f"Expected protocol text not found in {protocol}")
+          if schema_old not in schema_text:
+              raise SystemExit(f"Expected schema text not found in {schema}")
+
+          protocol.write_text(protocol_text.replace(protocol_old, protocol_new, 1), encoding="utf-8")
+          schema.write_text(schema_text.replace(schema_old, schema_new, 1), encoding="utf-8")
+          PY
+
+      - name: Commit contract updates
+        run: |
+          git add docs/gateway/protocol.md packages/gateway-protocol/src/schema/agents-models-skills.ts
+          git commit -m "docs(gateway): clarify agents.list runtime visibility scope"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate patch
+        run: |
+          git diff --check upstream/main...HEAD
+          pnpm docs:list
+          node scripts/run-vitest.mjs src/gateway/session-utils.test.ts -t "agents.list"
+
+      - name: Update PR branch
+        run: |
+          git push --force-with-lease=refs/heads/fix/chat-agent-visibility:$(git rev-parse origin/fix/chat-agent-visibility) origin HEAD:fix/chat-agent-visibility
